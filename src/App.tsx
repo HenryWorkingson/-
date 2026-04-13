@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { questions } from './data/questions';
 import { Answer, PersonalityResult } from './types';
-import { analyzePersonality } from './services/geminiService';
+import { personalityDictionary } from './data/dictionary';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { ChevronRight, RefreshCcw, Skull } from 'lucide-react';
 import { cn } from './lib/utils';
 
-type Step = 'home' | 'quiz' | 'loading' | 'result';
+type Step = 'home' | 'quiz' | 'result';
 
 export default function App() {
   const [step, setStep] = useState<Step>('home');
@@ -24,7 +24,7 @@ export default function App() {
     setError(null);
   };
 
-  const handleAnswer = async (optionIndex: number) => {
+  const handleAnswer = (optionIndex: number) => {
     const currentQuestion = questions[currentQuestionIndex];
     const selectedOption = currentQuestion.options[optionIndex];
     
@@ -40,8 +40,6 @@ export default function App() {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      setStep('loading');
-      
       const finalScores: Record<string, number> = {
         P: 0, R: 0, F: 0, I: 0, D: 0, A: 0, S: 0, X: 0, E: 0, G: 0
       };
@@ -60,15 +58,27 @@ export default function App() {
         finalScores.E >= finalScores.G ? 'E' : 'G',
       ].join('-');
 
-      try {
-        const res = await analyzePersonality(finalScores, code);
+      const dictEntry = personalityDictionary[code];
+
+      if (!dictEntry) {
+        setError('分析引擎出现异常，未找到对应人格。');
+        setStep('home');
+        return;
+      }
+
+      const res: PersonalityResult = {
+        personality_code: code,
+        personality_type: dictEntry.type,
+        dimension_scores: finalScores,
+        zha_xin_summary: dictEntry.summary,
+        match_recommendation: dictEntry.match,
+        avoid_warning: dictEntry.avoid
+      };
+
+      setTimeout(() => {
         setResult(res);
         setStep('result');
-      } catch (err) {
-        console.error(err);
-        setError('分析引擎似乎被你的人性吓坏了，请重试。');
-        setStep('home');
-      }
+      }, 100);
     }
   };
 
@@ -172,29 +182,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center space-y-6 w-full"
-            >
-              <div className="relative w-24 h-24 mx-auto">
-                <div className="absolute inset-0 border-t-2 border-white/20 rounded-full animate-spin" />
-                <div className="absolute inset-2 border-r-2 border-white/40 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
-                <div className="absolute inset-4 border-b-2 border-white/60 rounded-full animate-spin" style={{ animationDuration: '2s' }} />
-                <Skull className="absolute inset-0 m-auto w-6 h-6 text-white/50 animate-pulse" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-medium text-white">正在生成人格侧写</h3>
-                <p className="text-sm font-mono text-white/40 uppercase tracking-widest animate-pulse">
-                  Analyzing underlying logic...
-                </p>
               </div>
             </motion.div>
           )}
